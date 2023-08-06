@@ -31,6 +31,35 @@ def lr_scheduler(optimizer, iter_num, max_iter, gamma=10, power=0.75):
         param_group['nesterov'] = True
     return optimizer
 
+class Normalize(object):
+    """Normalize an tensor image with mean and standard deviation.
+    Given mean: (R, G, B),
+    will normalize each channel of the torch.*Tensor, i.e.
+    channel = channel - mean
+    Args:
+        mean (sequence): Sequence of means for R, G, B channels respecitvely.
+    """
+
+    def __init__(self, mean=None, meanfile=None):
+        if mean:
+            self.mean = mean
+        else:
+            arr = np.load(meanfile)
+            self.mean = torch.from_numpy(arr.astype('float32')/255.0)[[2,1,0],:,:]
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        # TODO: make efficient
+        for t, m in zip(tensor, self.mean):
+            t.sub_(m)
+        return tensor
+
+
 def image_train(resize_size=256, crop_size=224, alexnet=False):
   if not alexnet:
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -91,7 +120,8 @@ def cal_acc(loader, netF, netB, netC, flag=False):
     with torch.no_grad():
         iter_test = iter(loader)
         for i in range(len(loader)):
-            data = iter_test.next()
+            # data = iter_test.next()
+            data = next(iter_test)
             inputs = data[0]
             labels = data[1]
             inputs = inputs.cuda()
@@ -152,10 +182,11 @@ def train_source(args):
 
     while iter_num < max_iter:
         try:
-            inputs_source, labels_source = iter_source.next()
+            # inputs_source, labels_source = iter_source.next()
+            inputs_source, labels_source = next(iter_source)
         except:
             iter_source = iter(dset_loaders["source_tr"])
-            inputs_source, labels_source = iter_source.next()
+            inputs_source, labels_source = next(iter_source)
 
         if inputs_source.size(0) == 1:
             continue
@@ -270,9 +301,10 @@ if __name__ == "__main__":
     random.seed(SEED)
     # torch.backends.cudnn.deterministic = True
 
-    folder = '/home/zhongyi/data/domain_adaptation/classification/'
-    args.s_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.s] + '.txt'
-    args.test_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.t] + '.txt'   
+    # folder = '/home/zhongyi/data/domain_adaptation/classification/'
+    folder = '/data/wjn/academic/Causality/_dataset/'
+    args.s_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.s] + '_list.txt'
+    args.test_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.t] + '_list.txt'   
 
     args.output_dir_src = osp.join(args.output, args.dset, names[args.s][0].upper())
     args.name_src = names[args.s][0].upper()

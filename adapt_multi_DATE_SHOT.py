@@ -133,10 +133,10 @@ def train_target(args):
     args.w = torch.ones(len(args.src))
     while iter_num < max_iter:
         try:
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, _, tar_idx = next(iter_test)
         except:
             iter_test = iter(dset_loaders["target"])
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, _, tar_idx = next(iter_test)
 
         if inputs_test.size(0) == 1:
             continue
@@ -284,7 +284,7 @@ def obtain_label_alpha(loader, netF, netB, netC, args, obtain_prior=True):
     with torch.no_grad():
         iter_test = iter(loader)
         for _ in range(len(loader)):
-            data = iter_test.next()
+            data = next(iter_test)
             inputs = data[0]
             labels = data[1]
             inputs = inputs.cuda()
@@ -340,7 +340,7 @@ def cal_acc_multi(loader, netF_list, netB_list, netC_list, netDC_inter, args):
     with torch.no_grad():
         iter_test = iter(loader)
         for _ in range(len(loader)):
-            data = iter_test.next()
+            data = next(iter_test)
             inputs = data[0]
             labels = data[1]
             inputs = inputs.cuda()
@@ -460,12 +460,9 @@ if __name__ == "__main__":
     for i in range(len(names)):
         if i != args.t:
             continue
-        #folder = '/home/zhongyi/project/DECISION/logs/'
-        folder = '/home/zhongyi/data/domain_adaptation/classification/'
-        args.t_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.t] + '.txt' 
-        args.test_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.t] + '.txt' 
-        # args.t_dset_path = folder + names[args.t] + '_data.txt' 
-        # args.test_dset_path = folder + names[args.t] + '_data.txt' 
+        folder = '/data/wjn/academic/Causality/_dataset/'
+        args.t_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.t] + '_list.txt'
+        args.test_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.t] + '_list.txt'   
         print(args.t_dset_path)
 
     args.output_dir_src = []
