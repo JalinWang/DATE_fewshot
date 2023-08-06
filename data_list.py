@@ -46,6 +46,8 @@ class ImageList(Dataset):
             self.loader = rgb_loader
         elif mode == 'L':
             self.loader = l_loader
+        
+        self.targets = [s[1] for s in self.imgs]
 
     def __getitem__(self, index):
         path, target = self.imgs[index]
@@ -60,7 +62,7 @@ class ImageList(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-class ImageList_idx(Dataset):
+class ImageList_idx(Dataset): # with index returned
     def __init__(self, image_list, labels=None, transform=None, target_transform=None, mode='RGB'):
         imgs = make_dataset(image_list, labels)
         if len(imgs) == 0:
@@ -75,6 +77,8 @@ class ImageList_idx(Dataset):
         elif mode == 'L':
             self.loader = l_loader
 
+        self.targets = [s[1] for s in self.imgs]
+
     def __getitem__(self, index):
         path, target = self.imgs[index]
         img = self.loader(path)
@@ -83,10 +87,27 @@ class ImageList_idx(Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img, target, index
+        return img, target, index  # return index
 
     def __len__(self):
         return len(self.imgs)
+
+
+class Subset_idx(Dataset):
+    def __init__(self, dataset, indices) -> None:
+        self.dataset = dataset
+        self.indices = indices
+
+    def __getitem__(self, idx):
+        ret = []
+        if isinstance(idx, list):
+            raise NotImplementedError
+        ret = self.dataset[self.indices[idx]]
+        return ret[0], ret[1], idx
+
+    def __len__(self):
+        return len(self.indices)
+
 
 class ImageList_three_idx(Dataset):
     def __init__(self, image_list, labels=None, transform=None, target_transform=None, mode='RGB'):
