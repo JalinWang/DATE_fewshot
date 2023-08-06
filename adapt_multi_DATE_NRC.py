@@ -11,7 +11,7 @@ import torch.optim as optim
 from torchvision import transforms
 import network, loss
 from torch.utils.data import DataLoader
-from data_list import ImageList, ImageList_idx
+from data_list import ImageList, ImageList_idx, Subset_idx
 import random, pdb, math, copy
 from tqdm import tqdm
 from scipy.spatial.distance import cdist
@@ -67,13 +67,44 @@ def data_load(args):
     train_bs = args.batch_size
     txt_tar = open(args.t_dset_path).readlines()
     txt_test = open(args.test_dset_path).readlines()
+    assert txt_tar == txt_test
 
-    dsets["target"] = ImageList_idx(txt_tar, transform=image_train())
-    dset_loaders["target"] = DataLoader(dsets["target"], batch_size=train_bs, shuffle=True, num_workers=args.worker, drop_last=False)
-    dsets['target_'] = ImageList_idx(txt_tar, transform=image_train())
-    dset_loaders['target_'] = DataLoader(dsets['target_'], batch_size=train_bs*3, shuffle=False, num_workers=args.worker, drop_last=False)
-    dsets["test"] = ImageList_idx(txt_test, transform=image_test())
-    dset_loaders["test"] = DataLoader(dsets["test"], batch_size=train_bs*3, shuffle=False, num_workers=args.worker, drop_last=False)
+    def construct_fewshot_dataset(dataset, few_shot_num, num_classes, val_sample_num=None):
+        if few_shot_num is None:
+            raise ValueError("few_shot_num should be specified for test dataset.")
+
+        cnt = [ [] for _ in range(num_classes) ]
+
+        indecies = np.random.permutation(len(dataset.targets))
+        for i in indecies:
+            v = dataset.targets[i]
+            if len(cnt[v]) < few_shot_num:
+                cnt[v].append(i)
+        for i in cnt:
+            assert len(i) == few_shot_num
+        
+        # turn cnt into numpy array and flatten it
+        train_indices = np.array(cnt).flatten()
+        val_indices = np.array([i for i in range(len(dataset)) if i not in train_indices])
+
+        np.random.shuffle(val_indices) # np.random.randint() or sample
+        if val_sample_num is not None:
+            val_indices = val_indices[:val_sample_num]
+
+        train_dataset = Subset_idx(dataset, train_indices)
+        val_dataset = Subset_idx(dataset, val_indices)
+        return train_dataset, val_dataset
+
+    # d = ImageList_idx(txt_tar, transform=image_train())
+    d = ImageList(txt_tar, transform=image_train())
+    train_dataset, val_dataset = construct_fewshot_dataset(d, args.few_shot_num, args.class_num)
+
+    # dsets['target_'] = ImageList_idx(txt_tar, transform=image_train())
+    dset_loaders["target"] = DataLoader(train_dataset, batch_size=train_bs, shuffle=True, num_workers=args.worker, drop_last=False)
+    # dsets['target_'] = ImageList_idx(txt_tar, transform=image_train())
+    dset_loaders['target_'] = DataLoader(train_dataset, batch_size=train_bs*3, shuffle=False, num_workers=args.worker, drop_last=False)
+    # dsets["test"] = ImageList_idx(txt_test, transform=image_test())
+    dset_loaders['test'] = DataLoader(val_dataset, batch_size=train_bs*3, shuffle=False, num_workers=args.worker, drop_last=False)
 
     return dset_loaders
 
@@ -154,7 +185,7 @@ def train_target(args):
                 with torch.no_grad():
                     iter_test = iter(loader)
                     for j in range(len(loader)):
-                        data = iter_test.next()
+                        data = next(iter_test)
                         inputs = data[0]
                         indx = data[-1]
                         inputs = inputs.cuda()
@@ -170,10 +201,10 @@ def train_target(args):
             args.KK = 4
 
         try:
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, _, tar_idx = next(iter_test)
         except:
             iter_test = iter(dset_loaders["target"])
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, _, tar_idx = next(iter_test)
 
         if inputs_test.size(0) == 1:
             continue
@@ -317,7 +348,7 @@ def obtain_label_alpha(loader, netF, netB, netC, args, obtain_prior=True):
     with torch.no_grad():
         iter_test = iter(loader)
         for _ in range(len(loader)):
-            data = iter_test.next()
+            data = next(iter_test)
             inputs = data[0]
             labels = data[1]
             inputs = inputs.cuda()
@@ -373,7 +404,7 @@ def cal_acc_multi(loader, netF_list, netB_list, netC_list, netDC_inter, args):
     with torch.no_grad():
         iter_test = iter(loader)
         for _ in range(len(loader)):
-            data = iter_test.next()
+            data = next(iter_test)
             inputs = data[0]
             labels = data[1]
             inputs = inputs.cuda()
@@ -459,6 +490,9 @@ if __name__ == "__main__":
     parser.add_argument('--distance', type=str, default='cosine', choices=["euclidean", "cosine"])  
     parser.add_argument('--output', type=str, default='ckps/adapt_ours')
     parser.add_argument('--output_src', type=str, default='ckps/source/uda')
+
+
+    parser.add_argument('--few_shot_num', type=int, default=10)
     args = parser.parse_args()
     
     if args.dset == 'office-home':
@@ -488,9 +522,9 @@ if __name__ == "__main__":
     for i in range(len(names)):
         if i != args.t:
             continue
-        folder = '/home/zhongyi/data/domain_adaptation/classification/'
-        args.t_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.t] + '.txt' 
-        args.test_dset_path = folder + args.dset + '/' + 'image_list' + '/' + names[args.t] + '.txt' 
+        folder = '/data/wjn/academic/Causality/_dataset/'
+        args.t_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.t] + '_list.txt'
+        args.test_dset_path = folder + args.dset + '/' + '_image_list' + '/' + names[args.t] + '_list.txt'   
         print(args.t_dset_path)
 
 
